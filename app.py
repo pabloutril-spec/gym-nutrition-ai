@@ -93,31 +93,72 @@ def procesar_imagen_para_ia(imagen_pil):
     buffer.seek(0)
     return Image.open(buffer)
 
-# --- BARRA LATERAL: PERFIL FITNESS ---
+# --- BARRA LATERAL: PERFIL FITNESS EXTENDIDO ---
 with st.sidebar:
     st.header("⚡ Tu Perfil Fitness")
-    st.caption("Ajusta tus parámetros para calcular tus porciones y metas diarias.")
+    st.caption("Ajusta tus datos antropométricos y objetivo deportivo.")
     
-    peso = st.number_input("Tu peso actual (kg):", min_value=40.0, max_value=160.0, value=74.0, step=0.5)
-    fase = st.selectbox(
-        "Fase de entrenamiento:",
-        ["Ganar masa muscular (Volumen)", "Pérdida de grasa (Definición)", "Mantenimiento / Recomposición"]
+    col_p, col_a = st.columns(2)
+    with col_p:
+        peso = st.number_input("Peso (kg):", min_value=35.0, max_value=180.0, value=74.0, step=0.5)
+    with col_a:
+        altura = st.number_input("Altura (cm):", min_value=120, max_value=230, value=178, step=1)
+    
+    objetivo = st.selectbox(
+        "¿Cuál es tu objetivo principal?:",
+        [
+            "Ganar masa muscular (Volumen)",
+            "Perder peso / Grasa general",
+            "Definición muscular estricta",
+            "Tonificar / Recomposición corporal",
+            "Mantenimiento / Rendimiento deportivo"
+        ]
     )
+    
     actividad = st.select_slider(
-        "Nivel de actividad semanal:",
-        options=["Sedentario (1-2 días)", "Moderado (3-4 días)", "Intenso (5-6 días)", "Muy intenso (doble sesión)"],
+        "Frecuencia y exigencia semanal:",
+        options=["Sedentario (poco o nada)", "Ligero (1-2 días)", "Moderado (3-4 días)", "Intenso (5-6 días)", "Atleta élite (doble sesión)"],
         value="Moderado (3-4 días)"
     )
     
-    multiplicador_prot = 2.2 if "Volumen" in fase else (2.4 if "Definición" in fase else 2.0)
+    # Cálculo antropométrico (IMC)
+    estatura_m = altura / 100.0
+    imc = round(peso / (estatura_m ** 2), 1)
+
+    # Coeficientes nutricionales según objetivo
+    if objetivo == "Ganar masa muscular (Volumen)":
+        multiplicador_prot = 2.0
+        calorias_ajuste = "+350 kcal (superávit)"
+    elif objetivo == "Perder peso / Grasa general":
+        multiplicador_prot = 2.2
+        calorias_ajuste = "-400 kcal (déficit)"
+    elif objetivo == "Definición muscular estricta":
+        multiplicador_prot = 2.5
+        calorias_ajuste = "-500 kcal (déficit alto)"
+    elif objetivo == "Tonificar / Recomposición corporal":
+        multiplicador_prot = 2.2
+        calorias_ajuste = "Normocalórica / Ligero déficit"
+    else:
+        multiplicador_prot = 1.8
+        calorias_ajuste = "Mantenimiento neutro"
+
     prot_objetivo = round(peso * multiplicador_prot)
     
     st.divider()
-    st.markdown("**Meta diaria estimada:**")
-    st.metric(label="Proteína sugerida", value=f"{prot_objetivo} g / día")
-    st.caption(f"Calculado a {multiplicador_prot} g de proteína por kg de peso corporal.")
+    st.markdown("**Diagnóstico & Metas Diarias:**")
+    m_col1, m_col2 = st.columns(2)
+    with m_col1:
+        st.metric(label="IMC Estimado", value=f"{imc}")
+    with m_col2:
+        st.metric(label="Proteína Diaria", value=f"{prot_objetivo} g")
+        
+    st.caption(f"**Estrategia:** {calorias_ajuste} con {multiplicador_prot} g de proteína por kg.")
 
-perfil_contexto = f"Perfil del usuario: Peso {peso}kg, Objetivo: {fase}, Nivel de actividad: {actividad}, Meta de proteína diaria estimada: {prot_objetivo}g."
+perfil_contexto = (
+    f"Perfil del usuario: Peso {peso}kg, Altura {altura}cm, IMC {imc}, "
+    f"Objetivo específico: '{objetivo}', Nivel de actividad: '{actividad}', "
+    f"Meta de proteína: {prot_objetivo}g/día, Enfoque energético: {calorias_ajuste}."
+)
 
 # --- FUNCIONES DE ANÁLISIS ---
 
@@ -156,7 +197,7 @@ def analizar_datos_ia(datos, objetivo_usuario, precio=None, peso_total=None):
 Eres un entrenador y nutricionista deportivo de alto nivel.
 {perfil_contexto}
 
-Analiza este producto de forma directa y crítica considerando el perfil y objetivo del usuario:
+Analiza este producto de forma directa y crítica considerando el perfil completo del usuario:
 - Producto: {datos['producto']} ({datos['marca']})
 - Calorías (100g): {datos['calorias_100g']} kcal
 - Proteínas (100g): {datos['proteinas_100g']} g
@@ -166,8 +207,8 @@ Analiza este producto de forma directa y crítica considerando el perfil y objet
 {extra_precio}
 
 Estructura tu reporte con títulos claros:
-1. Calificación fitness del 1 al 10 (específica para su objetivo).
-2. Ajuste a sus macros (porción recomendada para su meta de {prot_objetivo}g de proteína al día).
+1. Calificación fitness del 1 al 10 (específica para su objetivo de {objetivo_usuario}).
+2. Ajuste a sus macros (porción recomendada en gramos/raciones teniendo en cuenta su meta de {prot_objetivo}g de proteína al día).
 3. Evaluación nutricional y de calidad de macros e ingredientes.
 4. Rentabilidad / Precio por gramo de proteína (si aplica).
 5. Veredicto final breve.
@@ -180,7 +221,7 @@ def analizar_foto_ia(imagen_pil, objetivo_usuario):
 Eres un entrenador y nutricionista deportivo.
 {perfil_contexto}
 
-Examina esta fotografía de un alimento, suplemento o etiqueta nutricional.
+Examina esta fotografía de un alimento, suplemento o etiqueta nutricional:
 1. Extrae o estima los valores clave por 100g o por ración (Calorías, Proteínas, Carbohidratos, Grasas).
 2. Da una calificación fitness del 1 al 10 adaptada al objetivo: {objetivo_usuario}.
 3. Porción recomendada: Indícale cuántos gramos o porción consumir para encajar en su requerimiento diario de {prot_objetivo}g de proteína.
@@ -194,7 +235,7 @@ def comparar_productos_ia(prod_a, prod_b, objetivo_usuario):
 Actúa como nutricionista de alto rendimiento.
 {perfil_contexto}
 
-Compara estos dos productos y elige un único ganador para la fase de '{objetivo_usuario}':
+Compara estos dos productos y elige un único ganador para el objetivo de '{objetivo_usuario}':
 
 PRODUCTO A:
 - Nombre: {prod_a['nombre']} ({prod_a['marca']})
@@ -270,7 +311,7 @@ if herramienta == "🔍 Código de Barras":
                 c3.metric("Carbohidratos", f"{info['carbohidratos_100g']} g")
                 c4.metric("Grasas", f"{info['grasas_100g']} g")
 
-                dictamen = analizar_datos_ia(info, fase, precio_input, peso_input)
+                dictamen = analizar_datos_ia(info, objetivo, precio_input, peso_input)
                 st.markdown("### 📋 Dictamen del Entrenador IA")
                 st.markdown(dictamen)
 
@@ -294,7 +335,7 @@ elif herramienta == "📷 Foto de Etiqueta":
 
         if st.button("Escanear y Analizar Etiqueta", type="primary"):
             with st.spinner("Analizando la imagen y calculando ración ideal..."):
-                dictamen = analizar_foto_ia(img_subida, fase)
+                dictamen = analizar_foto_ia(img_subida, objetivo)
                 st.markdown("### 📋 Dictamen de la Etiqueta")
                 st.markdown(dictamen)
 
@@ -332,7 +373,7 @@ elif herramienta == "⚔️ Cara a Cara":
         if st.button("Comparar Ambos Productos por Foto", type="primary"):
             if foto_a and foto_b:
                 with st.spinner("YIM está analizando ambas fotos y enfrentando los productos..."):
-                    dictamen = comparar_por_fotos_ia(Image.open(foto_a), Image.open(foto_b), fase, pr_a, pe_a, pr_b, pe_b)
+                    dictamen = comparar_por_fotos_ia(Image.open(foto_a), Image.open(foto_b), objetivo, pr_a, pe_a, pr_b, pe_b)
                     st.divider()
                     st.markdown("### 🏆 Decisión del Entrenador IA")
                     st.markdown(dictamen)
@@ -400,7 +441,7 @@ elif herramienta == "⚔️ Cara a Cara":
                                     f"💵 Coste prot: {resumen_b['coste_prot']}")
 
                         st.divider()
-                        dictamen = comparar_productos_ia(resumen_a, resumen_b, fase)
+                        dictamen = comparar_productos_ia(resumen_a, resumen_b, objetivo)
                         st.markdown("### 🏆 Decisión del Entrenador IA")
                         st.markdown(dictamen)
 
