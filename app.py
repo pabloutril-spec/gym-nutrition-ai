@@ -4,6 +4,7 @@ import requests
 import streamlit as st
 from google import genai
 from PIL import Image
+from fpdf import FPDF
 
 # Configuración básica de página
 st.set_page_config(
@@ -17,6 +18,35 @@ st.set_page_config(
 MI_API_KEY = st.secrets["GEMINI_API_KEY"]
 client = genai.Client(api_key=MI_API_KEY)
 MODELO_ACTUAL = "gemini-3.5-flash-lite"
+
+# Función generadora de PDF
+def crear_pdf(titulo, contenido):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    
+    # Encabezado / Título
+    pdf.set_font("Helvetica", style="B", size=16)
+    pdf.cell(0, 10, "YIM - Smart Gym Nutrition", ln=True, align="C")
+    pdf.set_font("Helvetica", style="B", size=13)
+    
+    # Limpieza de caracteres no compatibles con fuentes estándar
+    titulo_limpio = titulo.encode("latin-1", "replace").decode("latin-1")
+    pdf.cell(0, 10, titulo_limpio, ln=True, align="C")
+    pdf.ln(5)
+    
+    # Cuerpo del informe
+    pdf.set_font("Helvetica", size=10)
+    lineas = contenido.split("\n")
+    for linea in lineas:
+        linea_limpia = linea.replace("**", "").replace("#", "").strip()
+        linea_limpia = linea_limpia.encode("latin-1", "replace").decode("latin-1")
+        if linea_limpia:
+            pdf.multi_cell(0, 6, linea_limpia)
+        else:
+            pdf.ln(3)
+            
+    return bytes(pdf.output())
 
 def generar_con_reintento(contents, reintentos=3, espera=2):
     for intento in range(reintentos):
@@ -112,12 +142,12 @@ Analiza este producto de forma directa y crítica considerando el perfil y objet
 - Ingredientes: {datos['ingredientes']}
 {extra_precio}
 
-Estructura tu reporte con emojis y títulos claros:
-1. ⭐ Calificación fitness del 1 al 10 (específica para su objetivo).
-2. 🎯 Ajuste a sus macros (cuántos gramos o porción recomendarías consumir según su meta de {prot_objetivo}g de proteína al día).
-3. 🔬 Evaluación nutricional y de calidad de macros e ingredientes.
-4. 💰 Rentabilidad / Precio por gramo de proteína (si aplica).
-5. 📌 Veredicto final breve.
+Estructura tu reporte con títulos claros:
+1. Calificación fitness del 1 al 10 (específica para su objetivo).
+2. Ajuste a sus macros (porción recomendada para su meta de {prot_objetivo}g de proteína al día).
+3. Evaluación nutricional y de calidad de macros e ingredientes.
+4. Rentabilidad / Precio por gramo de proteína (si aplica).
+5. Veredicto final breve.
 """
     return generar_con_reintento(prompt)
 
@@ -130,7 +160,7 @@ Eres un entrenador y nutricionista deportivo.
 Examina esta fotografía de un alimento, suplemento o etiqueta nutricional.
 1. Extrae o estima los valores clave por 100g o por ración (Calorías, Proteínas, Carbohidratos, Grasas).
 2. Da una calificación fitness del 1 al 10 adaptada al objetivo: {objetivo_usuario}.
-3. 🎯 Porción recomendada: Indícale cuántos gramos o porción consumir para encajar en su requerimiento diario de {prot_objetivo}g de proteína.
+3. Porción recomendada: Indícale cuántos gramos o porción consumir para encajar en su requerimiento diario de {prot_objetivo}g de proteína.
 4. Realiza una evaluación crítica de la calidad de sus ingredientes y fuentes de proteína.
 5. Veredicto final: si vale la pena o si hay mejores alternativas.
 """
@@ -156,9 +186,9 @@ PRODUCTO B:
 - Ingredientes: {prod_b['ingredientes']}
 
 Responde con:
-1. 🏆 Ganador indiscutible.
-2. 🥊 Comparativa directa (calidad de proteína, pureza de ingredientes y rentabilidad).
-3. 💡 Recomendación práctica para integrarlo en su dieta diaria.
+1. Ganador indiscutible.
+2. Comparativa directa (calidad de proteína, pureza de ingredientes y rentabilidad).
+3. Recomendación práctica para integrarlo en su dieta diaria.
 """
     return generar_con_reintento(prompt)
 
@@ -168,8 +198,8 @@ def comparar_por_fotos_ia(img_a, img_b, objetivo_usuario, pr_a=0.0, pe_a=0.0, pr
     
     extra_precio = f"""
 Detalles económicos proporcionados:
-- Producto A: {pr_a}€ por {pe_a}g (si los valores son mayores a 0).
-- Producto B: {pr_b}€ por {pe_b}g (si los valores son mayores a 0).
+- Producto A: {pr_a}€ por {pe_a}g (si es mayor a 0).
+- Producto B: {pr_b}€ por {pe_b}g (si es mayor a 0).
 """
 
     prompt = f"""
@@ -180,10 +210,10 @@ Analiza estas DOS imágenes de productos o etiquetas nutricionales (Imagen 1 = P
 {extra_precio}
 
 Realiza una comparativa directa y rigurosa:
-1. 📊 Identifica los dos productos y resume sus macros aproximados (Calorías, Proteínas, Grasas, Carbohidratos).
-2. 🏆 Ganador indiscutible para el objetivo de '{objetivo_usuario}'.
-3. 🥊 Comparativa crítica (calidad de proteínas, pureza de ingredientes, azúcares/grasas y rentabilidad).
-4. 💡 Recomendación y porción ideal recomendada para el usuario.
+1. Identifica los dos productos y resume sus macros aproximados (Calorías, Proteínas, Grasas, Carbohidratos).
+2. Ganador indiscutible para el objetivo de '{objetivo_usuario}'.
+3. Comparativa crítica (calidad de proteínas, pureza de ingredientes, azúcares/grasas y rentabilidad).
+4. Recomendación y porción ideal recomendada para el usuario.
 """
     return generar_con_reintento([prompt, img_a_opt, img_b_opt])
 
@@ -221,11 +251,12 @@ if herramienta == "🔍 Código de Barras":
                 st.markdown("### 📋 Dictamen del Entrenador IA")
                 st.markdown(dictamen)
 
+                pdf_bytes = crear_pdf(f"Reporte: {info['producto']}", dictamen)
                 st.download_button(
-                    label="📥 Descargar Reporte (.md)",
-                    data=f"# Reporte: {info['producto']}\n\n{dictamen}",
-                    file_name=f"reporte_{codigo}.md",
-                    mime="text/markdown",
+                    label="📥 Descargar Reporte en PDF",
+                    data=pdf_bytes,
+                    file_name=f"yim_reporte_{codigo}.pdf",
+                    mime="application/pdf",
                 )
             else:
                 st.error("Producto no encontrado en la base de datos de Open Food Facts.")
@@ -244,11 +275,12 @@ elif herramienta == "📷 Foto de Etiqueta":
                 st.markdown("### 📋 Dictamen de la Etiqueta")
                 st.markdown(dictamen)
 
+                pdf_bytes = crear_pdf("Análisis de Etiqueta Nutricional", dictamen)
                 st.download_button(
-                    label="📥 Descargar Análisis de Etiqueta (.md)",
-                    data=f"# Análisis de Etiqueta\n\n{dictamen}",
-                    file_name="analisis_etiqueta.md",
-                    mime="text/markdown",
+                    label="📥 Descargar Análisis en PDF",
+                    data=pdf_bytes,
+                    file_name="yim_analisis_etiqueta.pdf",
+                    mime="application/pdf",
                 )
 
 elif herramienta == "⚔️ Cara a Cara":
@@ -282,11 +314,12 @@ elif herramienta == "⚔️ Cara a Cara":
                     st.markdown("### 🏆 Decisión del Entrenador IA")
                     st.markdown(dictamen)
                     
+                    pdf_bytes = crear_pdf("Comparativa Cara a Cara", dictamen)
                     st.download_button(
-                        label="📥 Descargar Comparativa (.md)",
-                        data=f"# Comparativa Cara a Cara\n\n{dictamen}",
-                        file_name="comparativa_fotos.md",
-                        mime="text/markdown",
+                        label="📥 Descargar Comparativa en PDF",
+                        data=pdf_bytes,
+                        file_name="yim_comparativa_fotos.pdf",
+                        mime="application/pdf",
                     )
             else:
                 st.warning("Sube las fotos de ambos productos para poder compararlos.")
@@ -348,11 +381,12 @@ elif herramienta == "⚔️ Cara a Cara":
                         st.markdown("### 🏆 Decisión del Entrenador IA")
                         st.markdown(dictamen)
 
+                        pdf_bytes = crear_pdf(f"Comparativa: {resumen_a['nombre']} VS {resumen_b['nombre']}", dictamen)
                         st.download_button(
-                            label="📥 Descargar Comparativa (.md)",
-                            data=f"# Comparativa: {resumen_a['nombre']} VS {resumen_b['nombre']}\n\n{dictamen}",
-                            file_name="comparativa_nutricional.md",
-                            mime="text/markdown",
+                            label="📥 Descargar Comparativa en PDF",
+                            data=pdf_bytes,
+                            file_name="yim_comparativa.pdf",
+                            mime="application/pdf",
                         )
                     else:
                         st.error("Uno o ambos códigos de barras no se encontraron.")
