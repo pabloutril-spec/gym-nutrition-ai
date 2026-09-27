@@ -32,7 +32,7 @@ with st.sidebar:
     prot_objetivo = round(peso * multiplicador_prot)
     
     st.divider()
-    st.markdown(f"**Meta diaria estimada:**")
+    st.markdown("**Meta diaria estimada:**")
     st.metric(label="Proteína sugerida", value=f"{prot_objetivo} g / día")
     st.caption(f"Calculado a {multiplicador_prot} g de proteína por kg de peso corporal.")
 
@@ -93,7 +93,7 @@ Estructura tu reporte con emojis y títulos claros:
 """
     try:
         response = client.models.generate_content(
-            model="gemini-2.5-flash",
+            model="gemini-3.8-flash",
             contents=prompt,
         )
         return response.text
@@ -121,7 +121,7 @@ Examina esta fotografía de un alimento, suplemento o etiqueta nutricional.
 """
     try:
         response = client.models.generate_content(
-            model="gemini-2.5-flash",
+            model="gemini-3.8-flash",
             contents=[prompt, img_ligera],
         )
         return response.text
@@ -154,7 +154,7 @@ Responde con:
 """
     try:
         response = client.models.generate_content(
-            model="gemini-2.5-flash",
+            model="gemini-3.8-flash",
             contents=prompt,
         )
         return response.text
