@@ -1,4 +1,5 @@
 import io
+import time
 import requests
 import streamlit as st
 from google import genai
@@ -11,12 +12,29 @@ st.set_page_config(page_title="Gym Nutrition AI", page_icon="🏋️", layout="w
 MI_API_KEY = st.secrets["GEMINI_API_KEY"]
 client = genai.Client(api_key=MI_API_KEY)
 
+MODELO_ACTUAL = "gemini-3.5-flash-lite"
+
+# Función auxiliar con reintento automático para evitar el error 503
+def generar_con_reintento(contents, reintentos=3, espera=2):
+    for intento in range(reintentos):
+        try:
+            response = client.models.generate_content(
+                model=MODELO_ACTUAL,
+                contents=contents,
+            )
+            return response.text
+        except Exception as e:
+            if "503" in str(e) and intento < reintentos - 1:
+                time.sleep(espera)
+                continue
+            return f"Error al generar reporte: {e}"
+
 # --- BARRA LATERAL: PERFIL FITNESS Y CALCULADORA DE MACROS ---
 with st.sidebar:
     st.header("⚙️ Tu Perfil Fitness")
     st.caption("Ajusta tus parámetros para obtener recomendaciones de porciones exactas.")
     
-    peso = st.number_input("Tu peso actual (kg):", min_value=40.0, max_value=160.0, value=75.0, step=0.5)
+    peso = st.number_input("Tu peso actual (kg):", min_value=40.0, max_value=160.0, value=74.0, step=0.5)
     fase = st.selectbox(
         "Fase de entrenamiento:",
         ["Ganar masa muscular (Volumen)", "Pérdida de grasa (Definición)", "Mantenimiento / Recomposición"]
@@ -91,14 +109,7 @@ Estructura tu reporte con emojis y títulos claros:
 4. 💰 Rentabilidad / Precio por gramo de proteína (si aplica).
 5. 📌 Veredicto final breve.
 """
-    try:
-        response = client.models.generate_content(
-            model="gemini-3.8-flash",
-            contents=prompt,
-        )
-        return response.text
-    except Exception as e:
-        return f"Error al generar reporte: {e}"
+    return generar_con_reintento(prompt)
 
 def analizar_foto_ia(imagen_pil, objetivo_usuario):
     img = imagen_pil.convert("RGB")
@@ -119,14 +130,7 @@ Examina esta fotografía de un alimento, suplemento o etiqueta nutricional.
 4. Realiza una evaluación crítica de la calidad de sus ingredientes y fuentes de proteína.
 5. Veredicto final: si vale la pena o si hay mejores alternativas.
 """
-    try:
-        response = client.models.generate_content(
-            model="gemini-3.8-flash",
-            contents=[prompt, img_ligera],
-        )
-        return response.text
-    except Exception as e:
-        return f"Error al analizar la imagen: {e}"
+    return generar_con_reintento([prompt, img_ligera])
 
 def comparar_productos_ia(prod_a, prod_b, objetivo_usuario):
     prompt = f"""
@@ -152,14 +156,7 @@ Responde con:
 2. 🥊 Comparativa directa (calidad de proteína, pureza de ingredientes y rentabilidad).
 3. 💡 Recomendación práctica para integrarlo en su dieta diaria.
 """
-    try:
-        response = client.models.generate_content(
-            model="gemini-3.8-flash",
-            contents=prompt,
-        )
-        return response.text
-    except Exception as e:
-        return f"Error en la comparativa: {e}"
+    return generar_con_reintento(prompt)
 
 # --- INTERFAZ PRINCIPAL ---
 
