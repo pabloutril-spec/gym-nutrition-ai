@@ -32,6 +32,14 @@ def generar_con_reintento(contents, reintentos=3, espera=2):
                 continue
             return f"Error al generar reporte: {e}"
 
+def procesar_imagen_para_ia(imagen_pil):
+    img = imagen_pil.convert("RGB")
+    img.thumbnail((700, 700))
+    buffer = io.BytesIO()
+    img.save(buffer, format="JPEG", quality=80)
+    buffer.seek(0)
+    return Image.open(buffer)
+
 # --- BARRA LATERAL: PERFIL FITNESS ---
 with st.sidebar:
     st.header("⚡ Tu Perfil Fitness")
@@ -114,13 +122,7 @@ Estructura tu reporte con emojis y títulos claros:
     return generar_con_reintento(prompt)
 
 def analizar_foto_ia(imagen_pil, objetivo_usuario):
-    img = imagen_pil.convert("RGB")
-    img.thumbnail((700, 700))
-    buffer = io.BytesIO()
-    img.save(buffer, format="JPEG", quality=80)
-    buffer.seek(0)
-    img_ligera = Image.open(buffer)
-
+    img_ligera = procesar_imagen_para_ia(imagen_pil)
     prompt = f"""
 Eres un entrenador y nutricionista deportivo.
 {perfil_contexto}
@@ -159,6 +161,31 @@ Responde con:
 3. 💡 Recomendación práctica para integrarlo en su dieta diaria.
 """
     return generar_con_reintento(prompt)
+
+def comparar_por_fotos_ia(img_a, img_b, objetivo_usuario, pr_a=0.0, pe_a=0.0, pr_b=0.0, pe_b=0.0):
+    img_a_opt = procesar_imagen_para_ia(img_a)
+    img_b_opt = procesar_imagen_para_ia(img_b)
+    
+    extra_precio = f"""
+Detalles económicos proporcionados:
+- Producto A: {pr_a}€ por {pe_a}g (si los valores son mayores a 0).
+- Producto B: {pr_b}€ por {pe_b}g (si los valores son mayores a 0).
+"""
+
+    prompt = f"""
+Actúa como nutricionista deportivo de élite.
+{perfil_contexto}
+
+Analiza estas DOS imágenes de productos o etiquetas nutricionales (Imagen 1 = Producto A, Imagen 2 = Producto B).
+{extra_precio}
+
+Realiza una comparativa directa y rigurosa:
+1. 📊 Identifica los dos productos y resume sus macros aproximados (Calorías, Proteínas, Grasas, Carbohidratos).
+2. 🏆 Ganador indiscutible para el objetivo de '{objetivo_usuario}'.
+3. 🥊 Comparativa crítica (calidad de proteínas, pureza de ingredientes, azúcares/grasas y rentabilidad).
+4. 💡 Recomendación y porción ideal recomendada para el usuario.
+"""
+    return generar_con_reintento([prompt, img_a_opt, img_b_opt])
 
 # --- INTERFAZ PRINCIPAL ---
 
@@ -225,71 +252,109 @@ elif herramienta == "📷 Foto de Etiqueta":
                 )
 
 elif herramienta == "⚔️ Cara a Cara":
-    st.write("Compara dos productos para saber cuál te conviene comprar según tus objetivos.")
+    st.write("Compara dos alimentos por código de barras o subiendo las fotos de sus etiquetas.")
 
-    col1, col2 = st.columns(2)
-    with col1:
-        st.subheader("Producto A")
-        cod_a = st.text_input("Código de barras A:", key="cb_a")
-        pr_a = st.number_input("Precio (€) A:", min_value=0.0, step=0.1, key="pr_a")
-        pe_a = st.number_input("Peso neto (g) A:", min_value=0.0, step=10.0, key="pe_a")
+    modo_comparacion = st.radio("Método de comparación:", ["📷 Por Fotos de Etiquetas", "🔢 Por Código de Barras"], horizontal=True)
 
-    with col2:
-        st.subheader("Producto B")
-        cod_b = st.text_input("Código de barras B:", key="cb_b")
-        pr_b = st.number_input("Precio (€) B:", min_value=0.0, step=0.1, key="pr_b")
-        pe_b = st.number_input("Peso neto (g) B:", min_value=0.0, step=10.0, key="pe_b")
+    if modo_comparacion == "📷 Por Fotos de Etiquetas":
+        col1, col2 = st.columns(2)
+        with col1:
+            st.subheader("Producto A")
+            foto_a = st.file_uploader("Foto de la etiqueta o producto A:", type=["jpg", "jpeg", "png", "webp"], key="foto_a")
+            if foto_a:
+                st.image(Image.open(foto_a), width=220)
+            pr_a = st.number_input("Precio (€) A [Opcional]:", min_value=0.0, step=0.1, key="pr_a_img")
+            pe_a = st.number_input("Peso neto (g) A [Opcional]:", min_value=0.0, step=10.0, key="pe_a_img")
 
-    if st.button("Comparar Ambos Productos", type="primary"):
-        if cod_a and cod_b:
-            with st.spinner("Extrayendo datos y enfrentando productos..."):
-                datos_a = consultar_open_food_facts(cod_a)
-                datos_b = consultar_open_food_facts(cod_b)
+        with col2:
+            st.subheader("Producto B")
+            foto_b = st.file_uploader("Foto de la etiqueta o producto B:", type=["jpg", "jpeg", "png", "webp"], key="foto_b")
+            if foto_b:
+                st.image(Image.open(foto_b), width=220)
+            pr_b = st.number_input("Precio (€) B [Opcional]:", min_value=0.0, step=0.1, key="pr_b_img")
+            pe_b = st.number_input("Peso neto (g) B [Opcional]:", min_value=0.0, step=10.0, key="pe_b_img")
 
-                if datos_a["encontrado"] and datos_b["encontrado"]:
-                    def calc_coste(d, pr, pe):
-                        if pr > 0 and pe > 0:
-                            p_tot = (d["proteinas_100g"] / 100) * pe
-                            return f"{(pr / p_tot):.3f} €/g" if p_tot > 0 else "N/A"
-                        return "No calculado"
-
-                    resumen_a = {
-                        "nombre": datos_a["producto"], "marca": datos_a["marca"],
-                        "kcal": datos_a["calorias_100g"], "prot": datos_a["proteinas_100g"],
-                        "carb": datos_a["carbohidratos_100g"], "grasas": datos_a["grasas_100g"],
-                        "coste_prot": calc_coste(datos_a, pr_a, pe_a),
-                        "ingredientes": datos_a["ingredientes"]
-                    }
-                    resumen_b = {
-                        "nombre": datos_b["producto"], "marca": datos_b["marca"],
-                        "kcal": datos_b["calorias_100g"], "prot": datos_b["proteinas_100g"],
-                        "carb": datos_b["carbohidratos_100g"], "grasas": datos_b["grasas_100g"],
-                        "coste_prot": calc_coste(datos_b, pr_b, pe_b),
-                        "ingredientes": datos_b["ingredientes"]
-                    }
-
-                    c_res1, c_res2 = st.columns(2)
-                    with c_res1:
-                        st.info(f"**{resumen_a['nombre']}** ({resumen_a['marca']})\n\n"
-                                f"🥩 Proteínas: {resumen_a['prot']}g | 🔥 {resumen_a['kcal']} kcal\n\n"
-                                f"💵 Coste prot: {resumen_a['coste_prot']}")
-                    with c_res2:
-                        st.info(f"**{resumen_b['nombre']}** ({resumen_b['marca']})\n\n"
-                                f"🥩 Proteínas: {resumen_b['prot']}g | 🔥 {resumen_b['kcal']} kcal\n\n"
-                                f"💵 Coste prot: {resumen_b['coste_prot']}")
-
+        if st.button("Comparar Ambos Productos por Foto", type="primary"):
+            if foto_a and foto_b:
+                with st.spinner("YIM está analizando ambas fotos y enfrentando los productos..."):
+                    dictamen = comparar_por_fotos_ia(Image.open(foto_a), Image.open(foto_b), fase, pr_a, pe_a, pr_b, pe_b)
                     st.divider()
-                    dictamen = comparar_productos_ia(resumen_a, resumen_b, fase)
                     st.markdown("### 🏆 Decisión del Entrenador IA")
                     st.markdown(dictamen)
-
+                    
                     st.download_button(
                         label="📥 Descargar Comparativa (.md)",
-                        data=f"# Comparativa: {resumen_a['nombre']} VS {resumen_b['nombre']}\n\n{dictamen}",
-                        file_name="comparativa_nutricional.md",
+                        data=f"# Comparativa Cara a Cara\n\n{dictamen}",
+                        file_name="comparativa_fotos.md",
                         mime="text/markdown",
                     )
-                else:
-                    st.error("Uno o ambos códigos de barras no se encontraron.")
-        else:
-            st.warning("Introduce los dos códigos de barras para comparar.")
+            else:
+                st.warning("Sube las fotos de ambos productos para poder compararlos.")
+
+    else:
+        col1, col2 = st.columns(2)
+        with col1:
+            st.subheader("Producto A")
+            cod_a = st.text_input("Código de barras A:", key="cb_a")
+            pr_a = st.number_input("Precio (€) A:", min_value=0.0, step=0.1, key="pr_a")
+            pe_a = st.number_input("Peso neto (g) A:", min_value=0.0, step=10.0, key="pe_a")
+
+        with col2:
+            st.subheader("Producto B")
+            cod_b = st.text_input("Código de barras B:", key="cb_b")
+            pr_b = st.number_input("Precio (€) B:", min_value=0.0, step=0.1, key="pr_b")
+            pe_b = st.number_input("Peso neto (g) B:", min_value=0.0, step=10.0, key="pe_b")
+
+        if st.button("Comparar Ambos Productos", type="primary"):
+            if cod_a and cod_b:
+                with st.spinner("Extrayendo datos y enfrentando productos..."):
+                    datos_a = consultar_open_food_facts(cod_a)
+                    datos_b = consultar_open_food_facts(cod_b)
+
+                    if datos_a["encontrado"] and datos_b["encontrado"]:
+                        def calc_coste(d, pr, pe):
+                            if pr > 0 and pe > 0:
+                                p_tot = (d["proteinas_100g"] / 100) * pe
+                                return f"{(pr / p_tot):.3f} €/g" if p_tot > 0 else "N/A"
+                            return "No calculado"
+
+                        resumen_a = {
+                            "nombre": datos_a["producto"], "marca": datos_a["marca"],
+                            "kcal": datos_a["calorias_100g"], "prot": datos_a["proteinas_100g"],
+                            "carb": datos_a["carbohidratos_100g"], "grasas": datos_a["grasas_100g"],
+                            "coste_prot": calc_coste(datos_a, pr_a, pe_a),
+                            "ingredientes": datos_a["ingredientes"]
+                        }
+                        resumen_b = {
+                            "nombre": datos_b["producto"], "marca": datos_b["marca"],
+                            "kcal": datos_b["calorias_100g"], "prot": datos_b["proteinas_100g"],
+                            "carb": datos_b["carbohidratos_100g"], "grasas": datos_b["grasas_100g"],
+                            "coste_prot": calc_coste(datos_b, pr_b, pe_b),
+                            "ingredientes": datos_b["ingredientes"]
+                        }
+
+                        c_res1, c_res2 = st.columns(2)
+                        with c_res1:
+                            st.info(f"**{resumen_a['nombre']}** ({resumen_a['marca']})\n\n"
+                                    f"🥩 Proteínas: {resumen_a['prot']}g | 🔥 {resumen_a['kcal']} kcal\n\n"
+                                    f"💵 Coste prot: {resumen_a['coste_prot']}")
+                        with c_res2:
+                            st.info(f"**{resumen_b['nombre']}** ({resumen_b['marca']})\n\n"
+                                    f"🥩 Proteínas: {resumen_b['prot']}g | 🔥 {resumen_b['kcal']} kcal\n\n"
+                                    f"💵 Coste prot: {resumen_b['coste_prot']}")
+
+                        st.divider()
+                        dictamen = comparar_productos_ia(resumen_a, resumen_b, fase)
+                        st.markdown("### 🏆 Decisión del Entrenador IA")
+                        st.markdown(dictamen)
+
+                        st.download_button(
+                            label="📥 Descargar Comparativa (.md)",
+                            data=f"# Comparativa: {resumen_a['nombre']} VS {resumen_b['nombre']}\n\n{dictamen}",
+                            file_name="comparativa_nutricional.md",
+                            mime="text/markdown",
+                        )
+                    else:
+                        st.error("Uno o ambos códigos de barras no se encontraron.")
+            else:
+                st.warning("Introduce los dos códigos de barras para comparar.")
