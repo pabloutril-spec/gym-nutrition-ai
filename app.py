@@ -160,7 +160,7 @@ Responde con:
 
 # --- INTERFAZ PRINCIPAL ---
 
-st.title("🏋️ Gym Nutrition AI")
+st.title("YIM – Smart Gym Nutrition")
 
 herramienta = st.radio(
     "Selecciona herramienta:",
