@@ -283,7 +283,7 @@ Realiza una comparativa directa y rigurosa:
 
 # --- INTERFAZ PRINCIPAL ---
 
-st.image("logo.jpg", width=280)
+st.image("logo.png", width=280)
 st.caption("Inteligencia artificial aplicada a tu nutrición y rendimiento deportivo.")
 
 herramienta = st.radio(
