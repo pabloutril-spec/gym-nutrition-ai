@@ -392,3 +392,4 @@ elif herramienta == "⚔️ Cara a Cara":
                         st.error("Uno o ambos códigos de barras no se encontraron.")
             else:
                 st.warning("Introduce los dos códigos de barras para comparar.")
+                fpdf2
