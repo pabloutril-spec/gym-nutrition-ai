@@ -283,7 +283,7 @@ Realiza una comparativa directa y rigurosa:
 
 # --- INTERFAZ PRINCIPAL ---
 
-st.title("⚡ YIM – Smart Gym Nutrition")
+st.image("logo.jpg", width=280)
 st.caption("Inteligencia artificial aplicada a tu nutrición y rendimiento deportivo.")
 
 herramienta = st.radio(
