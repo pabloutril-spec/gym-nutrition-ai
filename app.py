@@ -4,7 +4,6 @@ import requests
 import streamlit as st
 from google import genai
 from PIL import Image
-from fpdf import FPDF
 
 # Configuración básica de página
 st.set_page_config(
@@ -19,34 +18,58 @@ MI_API_KEY = st.secrets["GEMINI_API_KEY"]
 client = genai.Client(api_key=MI_API_KEY)
 MODELO_ACTUAL = "gemini-3.5-flash-lite"
 
-# Función generadora de PDF
-def crear_pdf(titulo, contenido):
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_auto_page_break(auto=True, margin=15)
-    
-    # Encabezado / Título
-    pdf.set_font("Helvetica", style="B", size=16)
-    pdf.cell(0, 10, "YIM - Smart Gym Nutrition", ln=True, align="C")
-    pdf.set_font("Helvetica", style="B", size=13)
-    
-    # Limpieza de caracteres no compatibles con fuentes estándar
-    titulo_limpio = titulo.encode("latin-1", "replace").decode("latin-1")
-    pdf.cell(0, 10, titulo_limpio, ln=True, align="C")
-    pdf.ln(5)
-    
-    # Cuerpo del informe
-    pdf.set_font("Helvetica", size=10)
-    lineas = contenido.split("\n")
-    for linea in lineas:
-        linea_limpia = linea.replace("**", "").replace("#", "").strip()
-        linea_limpia = linea_limpia.encode("latin-1", "replace").decode("latin-1")
-        if linea_limpia:
-            pdf.multi_cell(0, 6, linea_limpia)
-        else:
-            pdf.ln(3)
-            
-    return bytes(pdf.output())
+# Función para generar reporte listo para imprimir/guardar en PDF desde el navegador
+def generar_documento_imprimible(titulo, contenido):
+    html = f"""
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+        <meta charset="UTF-8">
+        <title>{titulo}</title>
+        <style>
+            body {{
+                font-family: Arial, sans-serif;
+                margin: 40px;
+                color: #111827;
+                line-height: 1.6;
+            }}
+            .header {{
+                border-bottom: 2px solid #00c96b;
+                padding-bottom: 12px;
+                margin-bottom: 24px;
+            }}
+            h1 {{
+                color: #0b0f19;
+                font-size: 24px;
+                margin: 0;
+            }}
+            .sub {{
+                color: #6b7280;
+                font-size: 14px;
+                margin-top: 4px;
+            }}
+            .content {{
+                white-space: pre-wrap;
+                font-size: 14px;
+            }}
+            @media print {{
+                body {{ margin: 20mm; }}
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="header">
+            <h1>⚡ YIM – Smart Gym Nutrition</h1>
+            <div class="sub">{titulo}</div>
+        </div>
+        <div class="content">{contenido}</div>
+        <script>
+            window.onload = function() {{ window.print(); }};
+        </script>
+    </body>
+    </html>
+    """
+    return html.encode("utf-8")
 
 def generar_con_reintento(contents, reintentos=3, espera=2):
     for intento in range(reintentos):
@@ -251,12 +274,12 @@ if herramienta == "🔍 Código de Barras":
                 st.markdown("### 📋 Dictamen del Entrenador IA")
                 st.markdown(dictamen)
 
-                pdf_bytes = crear_pdf(f"Reporte: {info['producto']}", dictamen)
+                doc_bytes = generar_documento_imprimible(f"Reporte: {info['producto']}", dictamen)
                 st.download_button(
-                    label="📥 Descargar Reporte en PDF",
-                    data=pdf_bytes,
-                    file_name=f"yim_reporte_{codigo}.pdf",
-                    mime="application/pdf",
+                    label="📄 Descargar / Imprimir Reporte en PDF",
+                    data=doc_bytes,
+                    file_name=f"yim_reporte_{codigo}.html",
+                    mime="text/html",
                 )
             else:
                 st.error("Producto no encontrado en la base de datos de Open Food Facts.")
@@ -275,12 +298,12 @@ elif herramienta == "📷 Foto de Etiqueta":
                 st.markdown("### 📋 Dictamen de la Etiqueta")
                 st.markdown(dictamen)
 
-                pdf_bytes = crear_pdf("Análisis de Etiqueta Nutricional", dictamen)
+                doc_bytes = generar_documento_imprimible("Análisis de Etiqueta Nutricional", dictamen)
                 st.download_button(
-                    label="📥 Descargar Análisis en PDF",
-                    data=pdf_bytes,
-                    file_name="yim_analisis_etiqueta.pdf",
-                    mime="application/pdf",
+                    label="📄 Descargar / Imprimir Reporte en PDF",
+                    data=doc_bytes,
+                    file_name="yim_analisis_etiqueta.html",
+                    mime="text/html",
                 )
 
 elif herramienta == "⚔️ Cara a Cara":
@@ -314,12 +337,12 @@ elif herramienta == "⚔️ Cara a Cara":
                     st.markdown("### 🏆 Decisión del Entrenador IA")
                     st.markdown(dictamen)
                     
-                    pdf_bytes = crear_pdf("Comparativa Cara a Cara", dictamen)
+                    doc_bytes = generar_documento_imprimible("Comparativa Cara a Cara", dictamen)
                     st.download_button(
-                        label="📥 Descargar Comparativa en PDF",
-                        data=pdf_bytes,
-                        file_name="yim_comparativa_fotos.pdf",
-                        mime="application/pdf",
+                        label="📄 Descargar / Imprimir Comparativa en PDF",
+                        data=doc_bytes,
+                        file_name="yim_comparativa_fotos.html",
+                        mime="text/html",
                     )
             else:
                 st.warning("Sube las fotos de ambos productos para poder compararlos.")
@@ -381,15 +404,14 @@ elif herramienta == "⚔️ Cara a Cara":
                         st.markdown("### 🏆 Decisión del Entrenador IA")
                         st.markdown(dictamen)
 
-                        pdf_bytes = crear_pdf(f"Comparativa: {resumen_a['nombre']} VS {resumen_b['nombre']}", dictamen)
+                        doc_bytes = generar_documento_imprimible(f"Comparativa: {resumen_a['nombre']} VS {resumen_b['nombre']}", dictamen)
                         st.download_button(
-                            label="📥 Descargar Comparativa en PDF",
-                            data=pdf_bytes,
-                            file_name="yim_comparativa.pdf",
-                            mime="application/pdf",
+                            label="📄 Descargar / Imprimir Comparativa en PDF",
+                            data=doc_bytes,
+                            file_name="yim_comparativa.html",
+                            mime="text/html",
                         )
                     else:
                         st.error("Uno o ambos códigos de barras no se encontraron.")
             else:
                 st.warning("Introduce los dos códigos de barras para comparar.")
-                fpdf2
