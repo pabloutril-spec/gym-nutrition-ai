@@ -61,7 +61,7 @@ perfil_contexto = f"Perfil del usuario: Peso {peso}kg, Objetivo: {fase}, Nivel d
 @st.cache_data(ttl=86400)
 def consultar_open_food_facts(codigo_barras):
     url = f"https://world.openfoodfacts.org/api/v0/product/{codigo_barras}.json"
-    headers = {"User-Agent": "GymNutritionAI - App - Version 1.0"}
+    headers = {"User-Agent": "YIM – Smart Gym Nutrition - App - Version 1.0"}
     try:
         response = requests.get(url, headers=headers, timeout=10)
         data = response.json()
